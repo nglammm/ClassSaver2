@@ -25,7 +25,7 @@ namespace ClassSaver2
                 & ~SymbolDisplayMiscellaneousOptions.UseSpecialTypes
             );
 
-        private struct TypeHandler
+        public struct TypeHandler
         {
             public string TypeFullName;
             
@@ -55,6 +55,18 @@ namespace ClassSaver2
                 /// External Write functions that has Write(BinaryWriter, Type)
                 /// </summary>
                 External
+            }
+
+            public string GetFunctionWrite(params string[] parameters)
+            {
+                string parameterString = string.Join(", ", parameters);
+                return $"{TypeFullName}.Write({parameterString})";
+            }
+
+            public string GetFunctionRead(params string[] parameters)
+            {
+                string parameterString = string.Join(", ", parameters);
+                return $"{TypeFullName}.Read({parameterString})";
             }
 
             public TypeHandler(string typeFullName, FuncReadType functionReadType, FuncWriteType functionWriteType)
@@ -218,17 +230,19 @@ namespace ClassSaver2
                 if (hasError) return;
                 
                 // save the variable order
-                varOrder.Enqueue((fieldSymbol.Name, varTypeName, new TypeHandler(handlerData.TypeFullName, handlerData.FunctionReadType, handlerData.FunctionWriteType)));
+                var typeHandler = new TypeHandler(handlerData.TypeFullName, handlerData.FunctionReadType,
+                    handlerData.FunctionWriteType);
+                varOrder.Enqueue((fieldSymbol.Name, varTypeName, typeHandler));
 
                 if (handlerData.FunctionWriteType == TypeHandler.FuncWriteType.ClassSaverItself)
                 {
-                    outputString.Append($@"{handlerData.TypeFullName}.Write(writer, data.{fieldSymbol.Name}, context);
+                    outputString.Append($@"{typeHandler.GetFunctionWrite("writer", $"data.{fieldSymbol.Name}", "context")};
             ");
                 }
                 else
                 {
                     // FuncWriteType.External
-                    outputString.Append($@"{handlerData.TypeFullName}.Write(writer, data.{fieldSymbol.Name});
+                    outputString.Append($@"{typeHandler.GetFunctionWrite("writer", $"data.{fieldSymbol.Name}")};
             ");
                 }
             });
@@ -269,7 +283,8 @@ namespace ClassSaver2
             int code = reader.ReadInt32();
             ");
             }
-
+            
+            // creating new instance
             outputString.Append($@"output = new {classString}();
             ");
             
@@ -286,7 +301,7 @@ namespace ClassSaver2
 
                 if (varData.Handler.FunctionReadType == TypeHandler.FuncReadType.ReturnType)
                 {
-                    outputString.Append($@"output.{varData.VarName} = {varData.Handler.TypeFullName}.Read(reader);
+                    outputString.Append($@"output.{varData.VarName} = {varData.Handler.GetFunctionRead("reader")};
             ");
                 }
                 else
@@ -294,7 +309,7 @@ namespace ClassSaver2
                     // TypeHandler.FuncReadType.ClassSaverItself
                     
                     var count = varOrder.Count; // this is used to name the variable
-                    outputString.Append($@"{varData.Handler.TypeFullName}.Read(reader, out {varData.VarTypeFullName} temp_{count}, context);
+                    outputString.Append($@"{varData.Handler.GetFunctionRead("reader", $"out {varData.VarTypeFullName} temp_{count}", "context")};
             output.{varData.VarName} = temp_{count};
             ");
                 }
