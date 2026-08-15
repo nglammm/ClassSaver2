@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using ClassSaver2.Generator;
+using ClassSaver2.Debug;
 
 namespace ClassSaver2
 {
@@ -15,14 +15,55 @@ namespace ClassSaver2
         private const string SerializableAttributeFullName = "global::System.SerializableAttribute";
         private const string SerializeMethodName = "System.SerializableAttribute";
         private const string NonSerializedAttributeFullName = "global::System.NonSerializedAttribute";
-        private const string NonSerializedMethodName = "System.NonSerializedAttribute";
+        
+        private const string WriteContextFullName = "global::ClassSaver2.WriteContext";
+        private const string ReadContextFullName = "global::ClassSaver2.ReadContext";
         
         private static readonly SymbolDisplayFormat CanonicalTypeFormat = 
             SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
                 SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions 
                 & ~SymbolDisplayMiscellaneousOptions.UseSpecialTypes
             );
-        
+
+        private struct TypeHandler
+        {
+            public string TypeFullName;
+            
+            public FuncReadType FunctionReadType;
+            public enum FuncReadType
+            {
+                /// <summary>
+                /// This option is the ClassSaver.Read(BinaryReader, out Type, ReadContext) func where we pass the context in too
+                /// </summary>
+                ClassSaverItself,
+                
+                /// <summary>
+                /// This is the Type Read(BinaryReader) that returns some value.
+                /// </summary>
+                ReturnType,
+            }
+            
+            public FuncWriteType FunctionWriteType;
+            public enum FuncWriteType
+            {
+                /// <summary>
+                /// Inside ClassSaver.Write(BinaryWriter, Type, WriteContext)
+                /// </summary>
+                ClassSaverItself,
+                
+                /// <summary>
+                /// External Write functions that has Write(BinaryWriter, Type)
+                /// </summary>
+                External
+            }
+
+            public TypeHandler(string typeFullName, FuncReadType functionReadType, FuncWriteType functionWriteType)
+            {
+                TypeFullName = typeFullName;
+                FunctionWriteType = functionWriteType;
+                FunctionReadType = functionReadType;
+            }
+        }
             
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
@@ -47,12 +88,12 @@ namespace ClassSaver2
                 {
                     var (predefined, serializableNames) = tuple;
             
-                    var dict = new Dictionary<string, (string TypeFullName, bool HasReturnType)>(predefined);
+                    var dict = new Dictionary<string, TypeHandler>(predefined);
 
                     // any [Serializable] type is handled directly by ClassSaver
                     foreach (var typeName in serializableNames)
                     {
-                        dict[typeName] = ("global::ClassSaver2.ClassSaver", false);
+                        dict[typeName] = new TypeHandler("global::ClassSaver2.ClassSaver", TypeHandler.FuncReadType.ClassSaverItself, TypeHandler.FuncWriteType.ClassSaverItself);
                     }
 
                     return dict;
@@ -64,14 +105,14 @@ namespace ClassSaver2
             {
                 // get everything out
                 INamedTypeSymbol targetClass = values.Left;
-                Dictionary<string, (string TypeFullName, bool HasReturnType)> handlerDict = values.Right;
+                Dictionary<string, TypeHandler> handlerDict = values.Right;
                 
                 scp.AddSource($"ClassSaver_{targetClass}.g.cs", GenerateScriptSource(scp, targetClass, handlerDict));
             });
         }
 
         private static string GenerateScriptSource(SourceProductionContext context, INamedTypeSymbol classSymbol,
-            Dictionary<string, (string TypeFullName, bool HasReturnType)> handlerDict)
+            Dictionary<string, TypeHandler> handlerDict)
         {
             // check if there are 0 initial constructors or not
             bool valid = classSymbol.IsValueType; // structs always have an overload for 0 constructor
@@ -114,17 +155,45 @@ namespace ClassSaver2
 
 using System;
 using System.IO;
+using System.Collections.Generic;
 
 namespace ClassSaver2
 {{
     public static partial class ClassSaver
     {{
-        public static void Write(BinaryWriter writer, {classString} data)
+        public static void Write(BinaryWriter writer, {classString} data, {WriteContextFullName} context = null)
         {{
             ");
+
+            if (classSymbol.IsReferenceType)
+            {
+                outputString.Append($@"
+            if (context == null)
+            {{
+                context = new {WriteContextFullName}();
+            }}
+
+            if (data is null)
+            {{
+                writer.Write((byte)0);
+                return;
+            }}
+
+            if (context.TryGet(data, out int dataIndex))
+            {{
+                writer.Write((byte)1);
+                writer.Write(dataIndex);
+                return;
+            }}
+            
+            writer.Write((byte)2);
+            writer.Write(context.Add(data));
+
+            ");
+            }
             
             // write function
-            Queue<(string VarName, string VarTypeFullName, string HandlerTypeName, bool HandlerHasReturnType)> varOrder = new Queue<(string VarName, string VarTypeFullName, string HandlerTypeName, bool HandlerHasReturnType)>();
+            Queue<(string VarName, string VarTypeFullName, TypeHandler Handler)> varOrder = new Queue<(string VarName, string VarTypeFullName, TypeHandler Handler)>();
 
             bool hasError = false;
             GetSerializableFields(classSymbol, (fieldSymbol) =>
@@ -145,10 +214,23 @@ namespace ClassSaver2
 
                     hasError = true;
                 }
+
+                if (hasError) return;
                 
-                if (!hasError) varOrder.Enqueue((fieldSymbol.Name, varTypeName, handlerData.TypeFullName, handlerData.HasReturnType));
-                if (!hasError) outputString.Append($@"{handlerData.TypeFullName}.Write(writer, data.{fieldSymbol.Name});
+                // save the variable order
+                varOrder.Enqueue((fieldSymbol.Name, varTypeName, new TypeHandler(handlerData.TypeFullName, handlerData.FunctionReadType, handlerData.FunctionWriteType)));
+
+                if (handlerData.FunctionWriteType == TypeHandler.FuncWriteType.ClassSaverItself)
+                {
+                    outputString.Append($@"{handlerData.TypeFullName}.Write(writer, data.{fieldSymbol.Name}, context);
             ");
+                }
+                else
+                {
+                    // FuncWriteType.External
+                    outputString.Append($@"{handlerData.TypeFullName}.Write(writer, data.{fieldSymbol.Name});
+            ");
+                }
             });
 
             if (hasError)
@@ -160,30 +242,65 @@ namespace ClassSaver2
             outputString.Append($@"
         }}
         
-        public static void Read(BinaryReader reader, out {classString} output)
+        public static void Read(BinaryReader reader, out {classString} output, {ReadContextFullName} context = null)
         {{
-            output = new {classString}();
-            
             ");
+
+            if (classSymbol.IsReferenceType)
+            {
+                outputString.Append($@"if (context == null)
+            {{
+                context = new {ReadContextFullName}();
+            }}
+            
+            byte byteCode = reader.ReadByte();
+            if (byteCode == (byte)0)
+            {{
+                output = null;
+                return;
+            }}
+            
+            if (byteCode == (byte)1)
+            {{
+                output = context.Get<{classString}>(reader.ReadInt32());
+                return;
+            }}
+
+            int code = reader.ReadInt32();
+            ");
+            }
+
+            outputString.Append($@"output = new {classString}();
+            ");
+            
+            if (classSymbol.IsReferenceType)
+            {
+                outputString.Append($@"
+            context.Add(code, output);
+            ");
+            }
 
             while (varOrder.Count > 0)
             {
                 var varData = varOrder.Dequeue();
 
-                if (varData.HandlerHasReturnType)
+                if (varData.Handler.FunctionReadType == TypeHandler.FuncReadType.ReturnType)
                 {
-                    outputString.Append($@"output.{varData.VarName} = {varData.HandlerTypeName}.Read(reader);
+                    outputString.Append($@"output.{varData.VarName} = {varData.Handler.TypeFullName}.Read(reader);
             ");
                 }
                 else
                 {
-                    var count = varOrder.Count;
-                    outputString.Append($@"{varData.HandlerTypeName}.Read(reader, out {varData.VarTypeFullName} temp_{count});
+                    // TypeHandler.FuncReadType.ClassSaverItself
+                    
+                    var count = varOrder.Count; // this is used to name the variable
+                    outputString.Append($@"{varData.Handler.TypeFullName}.Read(reader, out {varData.VarTypeFullName} temp_{count}, context);
             output.{varData.VarName} = temp_{count};
             ");
                 }
             }
-
+            
+            // end
             outputString.Append($@"
         }}
     }}
@@ -193,7 +310,7 @@ namespace ClassSaver2
         }
             
         // <type's full name, handler's full name>
-        private static IncrementalValueProvider<Dictionary<string, (string TypeFullName, bool HasReturnType)>> FetchPredefinedClasses(IncrementalGeneratorInitializationContext context)
+        private static IncrementalValueProvider<Dictionary<string, TypeHandler>> FetchPredefinedClasses(IncrementalGeneratorInitializationContext context)
         {
             var data =
                 context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -213,16 +330,16 @@ namespace ClassSaver2
             
             var returnData = collected.Select((handlers, _) =>
             {
-                var dict = new Dictionary<string, (string TypeFullName, bool HasReturnType)>();
+                var dict = new Dictionary<string, TypeHandler>();
                 
                 // add in prefills too
-                dict["global::System.Int32"] = ("global::ClassSaver2.PredefinedDatatypes.HandleInt", true);
-                dict["global::System.String"] = ("global::ClassSaver2.PredefinedDatatypes.HandleString", true);
-                dict["global::System.Single"] = ("global::ClassSaver2.PredefinedDatatypes.HandleFloat", true);
+                dict["global::System.Int32"] = new TypeHandler("global::ClassSaver2.PredefinedDatatypes.HandleInt", TypeHandler.FuncReadType.ReturnType, TypeHandler.FuncWriteType.External);
+                dict["global::System.String"] = new TypeHandler("global::ClassSaver2.PredefinedDatatypes.HandleString", TypeHandler.FuncReadType.ReturnType, TypeHandler.FuncWriteType.External);
+                dict["global::System.Single"] = new TypeHandler("global::ClassSaver2.PredefinedDatatypes.HandleFloat", TypeHandler.FuncReadType.ReturnType,  TypeHandler.FuncWriteType.External);
                 
                 foreach (var h in handlers)
                 {
-                    dict[h.TargetType.ToDisplayString(CanonicalTypeFormat)] = (h.HandlerClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), true);
+                    dict[h.TargetType.ToDisplayString(CanonicalTypeFormat)] = new TypeHandler(h.HandlerClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), TypeHandler.FuncReadType.ReturnType,  TypeHandler.FuncWriteType.External);
                 }
 
                 return dict;

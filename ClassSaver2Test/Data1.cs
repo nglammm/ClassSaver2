@@ -1,10 +1,25 @@
 ﻿using System;
 using System.IO;
 using ClassSaver2;
+using ClassSaver2.PredefinedDatatypes;
 
 
 namespace MyGame.Entities
 {
+    [DefineDatatype(typeof(float))]
+    public static class HandleFloat
+    {
+        public static void Write(BinaryWriter writer, float value)
+        {
+            writer.Write(value);
+        }
+
+        public static float Read(BinaryReader reader)
+        {
+            return reader.ReadSingle();
+        }
+    }
+    
     [Serializable]
     public class PlayerData
     {
@@ -13,9 +28,9 @@ namespace MyGame.Entities
         public int Score;
         
         public Vector2 Position;
-        public Vector2 Velocity;
-        public Vector2 Velocity2;
         public PlayerData2 Data2;
+        public int Goddamn;
+        public PlayerData playerData;
 
         // Custom datatype handled by [DefineDatatype]
         // public Math.Vector2 Position;
@@ -23,6 +38,11 @@ namespace MyGame.Entities
         // This field MUST be skipped by the generator
         [NonSerialized]
         public int TemporarySessionToken = 999;
+
+        public PlayerData()
+        {
+            playerData = this;
+        }
     }
     
     [Serializable]
