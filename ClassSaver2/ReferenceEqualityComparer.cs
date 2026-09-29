@@ -16,7 +16,6 @@ namespace ClassSaver2
 
         public int GetHashCode(object obj)
         {
-            if (obj == null) return 0;
             return RuntimeHelpers.GetHashCode(obj);
         }
     }

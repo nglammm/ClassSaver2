@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace ClassSaver2
 {
-    public sealed class ReadContext
+    public class ReadContext
     {
         private readonly Dictionary<int, object> _dataMap = new Dictionary<int, object>();
 
@@ -14,9 +14,9 @@ namespace ClassSaver2
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T Get<T>(int code) where T : class
+        public object Get(int code)
         {
-            return (T)_dataMap[code];
+            return _dataMap[code];
         }
     }
 }

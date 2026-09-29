@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ClassSaver2
 {
-    public sealed class WriteContext
+    public class WriteContext
     {
         private Dictionary<object, int> _objectCodeMap = new Dictionary<object, int>(ReferenceEqualityComparer.Instance);
         private int _nextIndex = 0;

@@ -1,21 +1,22 @@
 using System.IO;
 using System.Runtime.CompilerServices;
+using ClassSaver2.Remake;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
     [DefineDatatype(typeof(int))]
-    public static class HandleInt
+    public readonly struct HandleInt32 : IDefineDatatype<int>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write(BinaryWriter binaryWriter, int value)
+        public void Write(BinaryWriter binaryWriter, int value, WriteContext context)
         {
             binaryWriter.Write(value);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Read(BinaryReader binaryReader)
+        public void Read(BinaryReader binaryReader, ref int output, ReadContext context)
         {
-            return binaryReader.ReadInt32();
+            output = binaryReader.ReadInt32();
         }
     }
 }

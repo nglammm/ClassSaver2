@@ -1,21 +1,22 @@
 using System.IO;
 using System.Runtime.CompilerServices;
+using ClassSaver2.Remake;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
     [DefineDatatype(typeof(float))]
-    public static class HandleFloat
+    public readonly struct HandleSingle : IDefineDatatype<float>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write(BinaryWriter writer, float value)
+        public void Write(BinaryWriter writer, float value, WriteContext context)
         {
             writer.Write(value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float Read(BinaryReader binaryReader)
+        public void Read(BinaryReader binaryReader, ref float output, ReadContext context)
         {
-            return binaryReader.ReadSingle();
+            output = binaryReader.ReadSingle();
         }
     }
 }
