@@ -15,24 +15,16 @@ namespace ClassSaver2.Remake
         private const string SerializableClassFullName = "global::ClassSaver2.Internal.SerializableMap";
         private const string TypeInfoClassFullName = "global::ClassSaver2.Remake.TypeInfo";
         
-        private static StringBuilder _outputCode;
-
         private static string _targetTypeDisplayName;
-
-        private static void Initialise()
+        
+        public static string GenerateCode(TypeInfo targetType, StringBuilder outputCode = null)
         {
-            _outputCode = new StringBuilder(999);
-            _targetTypeDisplayName = string.Empty;
-        }
-
-        public static string GenerateCode(TypeInfo targetType)
-        {
-            Initialise();
-            
-            _targetTypeDisplayName = Helper.GetLastName(targetType.TypeFullName);
+            if (outputCode == null) outputCode = new StringBuilder(999);
+                
+             _targetTypeDisplayName = Helper.GetLastName(targetType.TypeFullName);
             
             // initial func + write function
-            _outputCode.Append($@"
+            outputCode.Append($@"
 /// Auto-generated script for
 /// {targetType.TypeFullName}
 
@@ -44,145 +36,102 @@ using ClassSaver2.PredefinedDatatypes;
 
 namespace ClassSaver2.Serializable
 {{
-    public static partial class {_targetTypeDisplayName}
-    {{
-        ");
-            
-            GenCodeWrite(targetType);
-            //GenCodeRead(targetType);
+    public readonly partial struct Handle{_targetTypeDisplayName}");
 
-            _outputCode.Append($@"
-    }}
-}}");
+            StringBuilder typeArgumentsBuilder = null;
             
-            return _outputCode.ToString();
-        }
-        
-        // type here guaranteed to be handled by ClassSaver.
-        private static void GenCodeWrite(TypeInfo targetType)
-        {
             if (targetType.Arity == 0)
             {
-                // for no generic
-                _outputCode.Append($@"
-        public static void Write(BinaryWriter writer, {targetType.TypeFullName} input, WriteContext context = null)
-        {{
-            if (context == null) context = new WriteContext();
-            if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
-            
-            ");
+                outputCode.Append($@" : IDefineDatatype<{targetType.TypeFullName}>
+    {{
+        ");
             }
             else
             {
-                // starter code
-                _outputCode.Append($@"
-        public static void Write<");
+                outputCode.Append($@"<");
                 
-                // scan for type arguments
-                StringBuilder whereConditionBuilder = null;
-
-                bool executed = false;
+                StringBuilder whereConditionBuilder = new StringBuilder(47 * targetType.Arity);
+                StringBuilder paramBuilder = new StringBuilder(3 * targetType.Arity);
                 
                 for (int i = 0; i < targetType.Arity; i++)
                 {
+                    // all type args in TypeInfo has SymbolName.
                     var typeArg = targetType.TypeArguments[i];
-                    if (typeArg.HasFixedType) continue; // skip
-
-                    if (!executed)
-                    {
-                        whereConditionBuilder = new StringBuilder(58);
-                        executed = true;
-                    }
                     
-                    _outputCode.Append($"{typeArg.SymbolName}, THandler_{typeArg.SymbolName}, ");
+                    outputCode.Append($"{typeArg.SymbolName}, THandler_{typeArg.SymbolName}, ");
                     whereConditionBuilder.Append(
-                        $"where THandler_{typeArg.SymbolName} : struct, IDefineDatatype<{typeArg.SymbolName}> where {typeArg.SymbolName} : new() ");
+                        $"where THandler_{typeArg.SymbolName} : struct, IDefineDatatype<{typeArg.SymbolName}> ");
+                    paramBuilder.Append($"{typeArg.SymbolName}, ");
                 
                 }
-
-                if (!executed)
-                {
-                    _outputCode.Append($@"
-        public static void Write(BinaryWriter writer, {targetType.TypeFullName} input, WriteContext context = null)
-        {{
-            if (context == null) context = new WriteContext();
-            if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
-            
-            ");
-                }
-
-                else
-                {
-                    _outputCode.Remove(_outputCode.Length - 2, 2);
-                    
-                    _outputCode.Append(
-                        $@">(BinaryWriter writer, {targetType.TypeFullName} input, WriteContext context = null) {whereConditionBuilder}
-        {{
-            if (context == null) context = new WriteContext();
-            if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
-            
-            ");
-                }
+                
+                outputCode.Remove(outputCode.Length - 2, 2);
+                paramBuilder.Remove(paramBuilder.Length - 2, 2);
+                outputCode.Append($@"> : IDefineDatatype<{targetType.TypeFullName}> {whereConditionBuilder}
+    {{
+        ");
+                typeArgumentsBuilder = paramBuilder;
             }
+            
+            GenCodeWrite(targetType, typeArgumentsBuilder, outputCode);
+            //GenCodeRead(targetType);
+
+            outputCode.Append($@"
+    }}
+}}");
+            
+            return outputCode.ToString();
+        }
+        
+        // type here guaranteed to be handled by ClassSaver.
+        private static void GenCodeWrite(TypeInfo targetType, StringBuilder targetTypeGenericsString, StringBuilder outputCode)
+        {
+            // starter code:
+            // if (context == null) context = new WriteContext();
+            // if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
+            outputCode.Append("public void Write(BinaryWriter writer, ");
+            if (targetTypeGenericsString == null)
+            {
+                outputCode.Append($"{targetType.TypeFullName} input, ");
+            }
+            else
+            {
+                outputCode.Append($"{targetType.TypeFullName} input, ");
+            }
+            outputCode.Append($@"WriteContext context)
+        {{
+            if (context == null) context = new WriteContext();
+            if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
+        
+            ");
             
             foreach (var fieldData in targetType.Fields)
             {
-                GenCodeFieldWrite(fieldData);
-                _outputCode.Append(@"
+                GenCodeFieldWrite(fieldData, outputCode);
+                outputCode.Append(@"
             ");
             }
 
-            _outputCode.Append($@"
+            outputCode.Append($@"
         }}
         ");
         }
 
-        private static void GenCodeFieldWrite(FieldInfo fieldInfo)
+        private static void GenCodeFieldWrite(FieldInfo fieldInfo, StringBuilder outputCode)
         {
             var fieldType = fieldInfo.FieldType;
             if (!fieldType.HasFixedType)
             {
-                _outputCode.Append($"default(THandler_{fieldType.SymbolName}).Write(writer, input.{fieldInfo.FieldName}, context);");
+                outputCode.Append($"default(THandler_{fieldType.SymbolName}).Write(writer, input.{fieldInfo.FieldName}, context);");
                 return;
             }
             
             // it has fixed type
             var type = fieldType.TypeInfo;
-            if (type.HasHandler)
-            {
-                _outputCode.Append($"default(");
-                WriteHandlerCallToSB(_outputCode, type);
-                _outputCode.Append($@").Write(writer, input.{fieldInfo.FieldName}, context);");
-                return;
-            }
-            
-            // it doesn't have a handler, meaning
-            // handled by classsaver2.
-            if (type.Arity == 0)
-            {
-                _outputCode.Append($"{Helper.GetLastName(type.TypeFullName)}.Write(writer, input.{fieldInfo.FieldName}, context);");
-                return;
-            }
-            
-            _outputCode.Append($"{Helper.GetLastName(type.TypeFullName)}.Write<");
-            for (int i = 0; i < type.Arity; i++)
-            {
-                var typeArg = type.TypeArguments[i];
-                if (i > 0)
-                {
-                    _outputCode.Append(", ");
-                }
-                if (typeArg.HasFixedType)
-                {
-                    WriteHandlerCallToSB(_outputCode, typeArg, true);
-                }
-                else
-                {
-                    _outputCode.Append($"{typeArg.SymbolName}, THandler_{typeArg.SymbolName}");
-                }
-            }
-
-            _outputCode.Append($">(writer, input.{fieldInfo.FieldName}, context);");
+ 
+            outputCode.Append($"default(");
+            WriteHandlerCallToSB(outputCode, type);
+            outputCode.Append($@").Write(writer, input.{fieldInfo.FieldName}, context);");
         }
 
         #region handler calls
