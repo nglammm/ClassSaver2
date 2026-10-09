@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using System.Linq;
 
 namespace ClassSaver2.Remake
 {
@@ -12,6 +13,14 @@ namespace ClassSaver2.Remake
     public static class Helper
     {
         #region string manipulations
+        
+        public static string GetFullMetadataName(this INamedTypeSymbol symbol)
+        {
+            if (symbol.ContainingNamespace == null || symbol.ContainingNamespace.IsGlobalNamespace)
+                return symbol.MetadataName;
+
+            return $"{symbol.ContainingNamespace.ToDisplayString()}.{symbol.MetadataName}";
+        }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string GetLastName(string s, bool includeTypeArgs = false)
@@ -42,20 +51,9 @@ namespace ClassSaver2.Remake
         public static string StripGenericBrackets(string typeFullName)
         {
             if (string.IsNullOrEmpty(typeFullName)) return string.Empty;
-            
-            var sb = new StringBuilder(typeFullName);
-            for (int i = 0; i < typeFullName.Length; i++)
-            {
-                var character =  typeFullName[i];
-                if (character == '<')
-                {
-                    break;
-                }
-                
-                sb.Append(character);
-            }
-            
-            return sb.ToString();
+
+            int idx = typeFullName.IndexOf('<');
+            return idx < 0 ? typeFullName : typeFullName.Substring(0, idx);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -135,32 +133,32 @@ namespace ClassSaver2.Remake
             return sb.ToString();
         }
         
-        static void AppendType(StringBuilder sb, ITypeSymbol symbol, bool fq)
+        static void AppendType(StringBuilder sb, ITypeSymbol symbol, bool fullyQualified)
         {
             switch (symbol)
             {
                 case IArrayTypeSymbol array:
-                    AppendType(sb, array.ElementType, fq);
+                    AppendType(sb, array.ElementType, fullyQualified);
                     sb.Append('[').Append(',', array.Rank - 1).Append(']');
                     break;
 
                 case IPointerTypeSymbol pointer:
-                    AppendType(sb, pointer.PointedAtType, fq);
+                    AppendType(sb, pointer.PointedAtType, fullyQualified);
                     sb.Append('*');
                     break;
 
                 case INamedTypeSymbol named:
                     if (named.ContainingType != null)
                     {
-                        AppendType(sb, named.ContainingType, fq);
+                        AppendType(sb, named.ContainingType, fullyQualified);
                         sb.Append('.');
                     }
                     else if (!named.ContainingNamespace.IsGlobalNamespace)
                     {
-                        if (fq) sb.Append("global::");
+                        if (fullyQualified) sb.Append("global::");
                         sb.Append(named.ContainingNamespace.ToDisplayString()).Append('.');
                     }
-                    else if (fq)
+                    else if (fullyQualified)
                     {
                         sb.Append("global::");
                     }
@@ -173,7 +171,7 @@ namespace ClassSaver2.Remake
                         for (int i = 0; i < named.TypeArguments.Length; i++)
                         {
                             if (i > 0) sb.Append(", ");
-                            AppendType(sb, named.TypeArguments[i], fq);
+                            AppendType(sb, named.TypeArguments[i], fullyQualified);
                         }
                         sb.Append('>');
                     }
@@ -184,30 +182,63 @@ namespace ClassSaver2.Remake
                     break;
             }
         }
-        #endregion
-        
-        #region serialization checks
-        public static bool HasHandler(this ITypeSymbol type)
+
+        public static void ToConstraintString(this ITypeParameterSymbol param, StringBuilder builder)
         {
-            if ((type.SpecialType >= SpecialType.System_Boolean &&
-                 type.SpecialType <= SpecialType.System_Double) ||
-                type.SpecialType == SpecialType.System_String) return true;
+            int startLength = builder.Length;
+            builder.Append($"where {param.Name} : ");
+            int clauseStartLength = builder.Length;
 
-            if (type is IArrayTypeSymbol array)
+            if (param.HasUnmanagedTypeConstraint)
+                builder.Append("unmanaged, ");
+            else if (param.HasValueTypeConstraint)
+                builder.Append("struct, ");
+            else if (param.HasReferenceTypeConstraint)
+                builder.Append(param.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?, " : "class, ");
+            else if (param.HasNotNullConstraint)
+                builder.Append("notnull, ");
+
+            foreach (var constraintType in param.ConstraintTypes)
             {
-                return HasHandler(array.ElementType);
+                builder.Append(constraintType.ToFastDisplayString(true));
+                builder.Append(", ");
             }
-            if (!(type is INamedTypeSymbol namedTypeSymbol)) return false;
-            if (namedTypeSymbol.IsSerializable) return true;
 
-            HashSet<string> hasHandlerUnboundTypes = new HashSet<string>
+            if (param.HasConstructorConstraint)
             {
-                "System.Collections.Generic.List<>",
-                "System.Collections.Generic.Dictionary<,>"
-            };
+                builder.Append("new(), ");
+            }
 
-            return hasHandlerUnboundTypes.Contains(MakeUnbounded(namedTypeSymbol.ToFastDisplayString(false)));
+            if (builder.Length > clauseStartLength)
+            {
+                builder.Length -= 2;
+            }
+            else
+            {
+                builder.Length = startLength;
+            }
         }
+        
+        public static bool HasParameterlessConstructor(this INamedTypeSymbol typeSymbol)
+        {
+            // Structs always have an implicit parameterless constructor
+            if (typeSymbol.IsValueType)
+            {
+                return true;
+            }
+
+            // Abstract classes cannot be constructed directly
+            if (typeSymbol.IsAbstract)
+            {
+                return false;
+            }
+
+            // For classes, look for an explicit instance constructor with 0 parameters
+            return typeSymbol.InstanceConstructors.Length == 0 || typeSymbol.InstanceConstructors.Any(c => 
+                c.Parameters.IsEmpty && 
+                c.DeclaredAccessibility != Accessibility.Private);
+        }
+
         #endregion
         
         #region equality and hashcode

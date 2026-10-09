@@ -10,11 +10,6 @@ namespace ClassSaver2.Remake
     /// </summary>
     public static class ScriptGenerator
     {
-        private const string WriteContextFullName = "global::ClassSaver2.WriteContext";
-        private const string ReadContextFullName = "global::ClassSaver2.ReadContext";
-        private const string SerializableClassFullName = "global::ClassSaver2.Internal.SerializableMap";
-        private const string TypeInfoClassFullName = "global::ClassSaver2.Remake.TypeInfo";
-        
         private static string _targetTypeDisplayName;
         
         public static string GenerateCode(TypeInfo targetType, StringBuilder outputCode = null)
@@ -32,14 +27,12 @@ using System;
 using System.IO;
 using ClassSaver2;
 using ClassSaver2.Remake;
-using ClassSaver2.PredefinedDatatypes;
 
-namespace ClassSaver2.Serializable
+namespace ClassSaver2.PredefinedDatatypes
 {{
     public readonly partial struct Handle{_targetTypeDisplayName}");
-
-            StringBuilder typeArgumentsBuilder = null;
             
+            // write the interfaces
             if (targetType.Arity == 0)
             {
                 outputCode.Append($@" : IDefineDatatype<{targetType.TypeFullName}>
@@ -67,14 +60,13 @@ namespace ClassSaver2.Serializable
                 
                 outputCode.Remove(outputCode.Length - 2, 2);
                 paramBuilder.Remove(paramBuilder.Length - 2, 2);
-                outputCode.Append($@"> : IDefineDatatype<{targetType.TypeFullName}> {whereConditionBuilder}
+                outputCode.Append($@"> : IDefineDatatype<{targetType.TypeFullName}> {whereConditionBuilder} {targetType.TypeConstraintsAsString}
     {{
         ");
-                typeArgumentsBuilder = paramBuilder;
             }
             
-            GenCodeWrite(targetType, typeArgumentsBuilder, outputCode);
-            //GenCodeRead(targetType);
+            GenCodeWrite(targetType, outputCode);
+            GenCodeRead(targetType, outputCode);
 
             outputCode.Append($@"
     }}
@@ -84,21 +76,12 @@ namespace ClassSaver2.Serializable
         }
         
         // type here guaranteed to be handled by ClassSaver.
-        private static void GenCodeWrite(TypeInfo targetType, StringBuilder targetTypeGenericsString, StringBuilder outputCode)
+        private static void GenCodeWrite(TypeInfo targetType, StringBuilder outputCode)
         {
             // starter code:
             // if (context == null) context = new WriteContext();
             // if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
-            outputCode.Append("public void Write(BinaryWriter writer, ");
-            if (targetTypeGenericsString == null)
-            {
-                outputCode.Append($"{targetType.TypeFullName} input, ");
-            }
-            else
-            {
-                outputCode.Append($"{targetType.TypeFullName} input, ");
-            }
-            outputCode.Append($@"WriteContext context)
+            outputCode.Append($@"public void Write(BinaryWriter writer, {targetType.TypeFullName} input, WriteContext context = null)
         {{
             if (context == null) context = new WriteContext();
             if (DefineTypeFunctions.CanSkipWrite(writer, input, context)) return;
@@ -132,6 +115,43 @@ namespace ClassSaver2.Serializable
             outputCode.Append($"default(");
             WriteHandlerCallToSB(outputCode, type);
             outputCode.Append($@").Write(writer, input.{fieldInfo.FieldName}, context);");
+        }
+
+        private static void GenCodeRead(TypeInfo targetType, StringBuilder outputCode)
+        {
+            outputCode.Append($@"public void Read(BinaryReader reader, ref {targetType.TypeFullName} input, ReadContext context = null)
+        {{
+            if (context == null) context = new ReadContext();
+            if (DefineTypeFunctions.CanSkipRead(reader, ref input, context, true)) return;
+            
+            ");
+            
+            foreach (var fieldData in targetType.Fields)
+            {
+                GenCodeFieldRead(fieldData, outputCode);
+                outputCode.Append(@"
+            ");
+            }
+            
+            outputCode.Append($@"
+        }}
+        ");
+        }
+
+        private static void GenCodeFieldRead(FieldInfo fieldInfo, StringBuilder outputCode)
+        {
+            var fieldType = fieldInfo.FieldType;
+            if (!fieldType.HasFixedType)
+            {
+                outputCode.Append(
+                    $"default(THandler_{fieldType.SymbolName}).Read(reader, ref input.{fieldInfo.FieldName}, context);");
+                return;
+            }
+            
+            var type = fieldType.TypeInfo;
+            outputCode.Append($"default(");
+            WriteHandlerCallToSB(outputCode, type);
+            outputCode.Append($").Read(reader, ref input.{fieldInfo.FieldName}, context);");
         }
 
         #region handler calls
@@ -187,5 +207,7 @@ namespace ClassSaver2.Serializable
             sb.Append(">");
         }
         #endregion
+        
+        
     }
 }

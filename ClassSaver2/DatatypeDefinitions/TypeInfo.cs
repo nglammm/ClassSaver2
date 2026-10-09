@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ClassSaver2.PredefinedDatatypes;
 using ClassSaver2.Remake;
 using Microsoft.CodeAnalysis;
 
@@ -12,7 +13,7 @@ namespace ClassSaver2.DatatypeDefinitions
     {
         public List<FieldInfo> Fields { get; }
 
-        public TypeInfo(ITypeSymbol symbol, string serializeFieldAttributeFullName, string nonSerializeAttributeFullName) : base(symbol)
+        public TypeInfo(ITypeSymbol symbol, Compilation compilation, string nonSerializeAttributeFullName) : base(symbol)
         {
             // generate fields for me
             Fields = new List<FieldInfo>(2);
@@ -23,28 +24,28 @@ namespace ClassSaver2.DatatypeDefinitions
                 if (fieldSymbol.AssociatedSymbol is IPropertySymbol) continue;
                 if (fieldSymbol.IsConst || fieldSymbol.IsStatic) continue;
                 
-                // 2. is public or has the SerializeField tag
+                // 2. is public
                 bool serializeField = fieldSymbol.DeclaredAccessibility == Accessibility.Public;
+                
+                // linear scan of attributes (for nonserialized attr)
                 foreach (var attribute in fieldSymbol.GetAttributes())
                 {
                     var attr = attribute.AttributeClass;
                     if (attr == null) continue;
 
                     var attrName = attr.ToFastDisplayString(false);
-
-                    if (attrName == serializeFieldAttributeFullName)
-                    {
-                        serializeField = true;
-                        continue;
-                    }
-
+                    
                     if (attrName == nonSerializeAttributeFullName)
                     {
                         serializeField = false;
+                        break; // stop iterating for now
                     }
                 }
 
                 if (!serializeField) continue;
+                
+                if (!DefineTypeFunctions.HasHandler(compilation, fieldSymbol.Type)) continue;
+                
                 Fields.Add(new FieldInfo(fieldSymbol));
             }
         }

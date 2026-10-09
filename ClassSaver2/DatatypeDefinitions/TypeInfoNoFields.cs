@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using ClassSaver2.Remake;
 using Microsoft.CodeAnalysis;
 
@@ -12,12 +13,8 @@ namespace ClassSaver2.DatatypeDefinitions
     {
         public string TypeFullName { get; }
         public TypeArgumentInfo[] TypeArguments { get; }
+        public string TypeConstraintsAsString { get; }
         
-        /// <summary>
-        /// If a type has handler, it will be handled by ClassSaver2.PredefinedDatatypes.Handler{type display name},
-        /// else it is handled by ClassSaver2.{type display name}
-        /// </summary>
-        public bool HasHandler { get; }
         public int Arity => TypeArguments?.Length ?? 0;
 
         
@@ -25,41 +22,41 @@ namespace ClassSaver2.DatatypeDefinitions
         {
             TypeFullName = symbol.ToFastDisplayString(true);
     
-            if (!(symbol is INamedTypeSymbol namedTypeSymbol))
+            if (!(symbol is INamedTypeSymbol namedTypeSymbol) || namedTypeSymbol.Arity == 0)
             {
                 TypeArguments = Array.Empty<TypeArgumentInfo>();
-                return;
-            }
-
-            HasHandler = namedTypeSymbol.HasHandler();
-   
-            if (namedTypeSymbol.Arity == 0)
-            {
-                TypeArguments = Array.Empty<TypeArgumentInfo>();
+                TypeConstraintsAsString = string.Empty;
                 return;
             }
     
-            var typeArgs = new TypeArgumentInfo[namedTypeSymbol.Arity];
-            TypeArguments = typeArgs;
+            TypeArguments = new TypeArgumentInfo[namedTypeSymbol.Arity];
+            StringBuilder typeConstraintsBuilder = new StringBuilder(namedTypeSymbol.Arity * 3);
     
             for (int i = 0; i < namedTypeSymbol.Arity; i++)
             {
                 var typeArgument = namedTypeSymbol.TypeArguments[i];
                 if (typeArgument.TypeKind == TypeKind.TypeParameter)
                 {
-                    typeArgs[i] = new TypeArgumentInfo(TypeFullName, typeArgument.Name);
+                    TypeArguments[i] = new TypeArgumentInfo(TypeFullName, typeArgument.Name);
                 }
                 else
                 {
-                    typeArgs[i] = new TypeArgumentInfo(TypeFullName, new TypeInfoNoFields(typeArgument), typeArgument.Name);
+                    TypeArguments[i] = new TypeArgumentInfo(TypeFullName, new TypeInfoNoFields(typeArgument), typeArgument.Name);
                 }
+                
+                // type parameter
+                var typeParameter = namedTypeSymbol.TypeParameters[i];
+                typeParameter.ToConstraintString(typeConstraintsBuilder);
+                typeConstraintsBuilder.Append(' ');
             }
+            
+            TypeConstraintsAsString = typeConstraintsBuilder.ToString();
         }
         
         public bool Equals(TypeInfoNoFields other)
         {
             if (other == null) return false;
-            return TypeFullName == other.TypeFullName && Helper.Equals(TypeArguments, other.TypeArguments, EqualityComparer<TypeArgumentInfo>.Default) && HasHandler == other.HasHandler;
+            return TypeFullName == other.TypeFullName && Helper.Equals(TypeArguments, other.TypeArguments, EqualityComparer<TypeArgumentInfo>.Default);
         }
 
         public override bool Equals(object obj)
@@ -72,8 +69,7 @@ namespace ClassSaver2.DatatypeDefinitions
             unchecked
             {
                 var hashCode = (TypeFullName != null ? TypeFullName.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ Helper.GetHashCode(TypeArguments);
-                hashCode = (hashCode * 397) ^ HasHandler.GetHashCode();
+                hashCode = (hashCode * 397) ^ Helper.GetHashCode(TypeArguments); ;
                 return hashCode;
             }
         }

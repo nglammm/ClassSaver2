@@ -5,6 +5,7 @@
 
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+        <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
