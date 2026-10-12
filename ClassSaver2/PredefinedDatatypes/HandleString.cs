@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
-    [DefineDatatype(typeof(string))]
     public readonly struct HandleString : IDefineDatatype<string>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

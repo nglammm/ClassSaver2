@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using ClassSaver2.PredefinedDatatypes;
-using ClassSaver2.Remake;
 using Microsoft.CodeAnalysis;
 
 namespace ClassSaver2.DatatypeDefinitions
@@ -13,14 +12,14 @@ namespace ClassSaver2.DatatypeDefinitions
     {
         public List<FieldInfo> Fields { get; }
 
-        public TypeInfo(ITypeSymbol symbol, Compilation compilation, string nonSerializeAttributeFullName) : base(symbol)
+        public TypeInfo(ITypeSymbol symbol, string nonSerializeAttributeFullName) : base(symbol)
         {
             // generate fields for me
             Fields = new List<FieldInfo>(2);
-            foreach (var field in symbol.OriginalDefinition.GetMembers())
+            foreach (var fieldSymbol in symbol.OriginalDefinition.GetMembers().OfType<IFieldSymbol>())
             {
                 // 1. is it a valid field
-                if (!(field is IFieldSymbol fieldSymbol) || fieldSymbol.IsImplicitlyDeclared) continue;
+                if (fieldSymbol.IsImplicitlyDeclared) continue;
                 if (fieldSymbol.AssociatedSymbol is IPropertySymbol) continue;
                 if (fieldSymbol.IsConst || fieldSymbol.IsStatic) continue;
                 
@@ -43,8 +42,6 @@ namespace ClassSaver2.DatatypeDefinitions
                 }
 
                 if (!serializeField) continue;
-                
-                if (!DefineTypeFunctions.HasHandler(compilation, fieldSymbol.Type)) continue;
                 
                 Fields.Add(new FieldInfo(fieldSymbol));
             }

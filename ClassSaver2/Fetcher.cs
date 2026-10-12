@@ -1,0 +1,82 @@
+using System;
+using ClassSaver2.Debug;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using TypeInfo = ClassSaver2.DatatypeDefinitions.TypeInfo;
+
+namespace ClassSaver2
+{
+    [Generator]
+    public class Fetcher : IIncrementalGenerator
+    {
+        public readonly struct GenerationTarget : IEquatable<GenerationTarget>
+        {
+            public TypeInfo TypeInfo { get; }
+            public Diagnostic Diagnostic { get; }
+            
+            public GenerationTarget(TypeInfo typeInfo, Diagnostic diagnostic)
+            {
+                TypeInfo = typeInfo;
+                Diagnostic = diagnostic;
+            }
+
+            public bool Equals(GenerationTarget other)
+            {
+                return Equals(TypeInfo, other.TypeInfo) && Equals(Diagnostic, other.Diagnostic);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is GenerationTarget other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return ((TypeInfo != null ? TypeInfo.GetHashCode() : 0) * 397) ^ (Diagnostic != null ? Diagnostic.GetHashCode() : 0);
+                }
+            }
+        }
+        
+        private const string SerializeAttributeName = "ClassSaver2.SerializeAttribute";
+        private const string NonSerializeAttributeName = "System.NonSerializedAttribute";
+        
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var serializable = FetchSerializable(context.SyntaxProvider);
+            
+            context.RegisterSourceOutput(serializable, (scp, value) =>
+            {
+                if (value.Diagnostic != null) scp.ReportDiagnostic(value.Diagnostic);
+                
+                if (value.TypeInfo != null)
+                {
+                    var serializeCode = ScriptGenerator.GenerateCode(value.TypeInfo);
+                    scp.AddSource($"{Helper.Sanitize(value.TypeInfo.TypeFullName)}.g.cs", serializeCode);
+                }
+            });
+        }
+
+        private IncrementalValuesProvider<GenerationTarget> FetchSerializable(SyntaxValueProvider provider)
+        {
+            return provider.ForAttributeWithMetadataName(
+                SerializeAttributeName,
+                predicate: (node, _) => node is ClassDeclarationSyntax || node is StructDeclarationSyntax,
+                transform: (ctx, _) =>
+                {
+                    if (!(ctx.TargetSymbol is INamedTypeSymbol typeSymbol)) return default;
+                    if (!typeSymbol.HasParameterlessConstructor())
+                    {
+                        var diagNoParamConstructor = Diagnostic.Create(Diagnostics.MissingParameterlessConstructorRule, 
+                            typeSymbol.Locations[0], 
+                            typeSymbol.Name);
+                        
+                        return new GenerationTarget(null, diagNoParamConstructor);
+                    }
+                    
+                    return new GenerationTarget(new TypeInfo(typeSymbol, NonSerializeAttributeName), null);
+                }).Where(value => !value.Equals(default));
+        }
+    }
+}

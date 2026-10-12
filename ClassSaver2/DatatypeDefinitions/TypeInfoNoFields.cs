@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using ClassSaver2.Remake;
 using Microsoft.CodeAnalysis;
 
 namespace ClassSaver2.DatatypeDefinitions

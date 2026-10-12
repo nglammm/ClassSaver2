@@ -5,7 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using System.Linq;
 
-namespace ClassSaver2.Remake
+namespace ClassSaver2
 {
     /// <summary>
     /// Global helper functions.

@@ -3,8 +3,6 @@ using System.IO;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
-    // TODO: NEW NAME SCHEME: HANDLELIST_1`
-    [DefineDatatype(typeof(List<>))]
     public readonly partial struct HandleList<T, TElementHandler> : IDefineDatatype<List<T>>
         where TElementHandler : struct, IDefineDatatype<T> where T : new()
     {

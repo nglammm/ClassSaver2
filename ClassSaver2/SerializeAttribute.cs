@@ -1,6 +1,6 @@
 using System;
 
-namespace ClassSaver2.Remake
+namespace ClassSaver2
 {
     /// <summary>
     /// Marks this type is serialized by ClassSaver2.

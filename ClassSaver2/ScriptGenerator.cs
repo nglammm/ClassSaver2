@@ -1,9 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Text;
 using ClassSaver2.DatatypeDefinitions;
 
-namespace ClassSaver2.Remake
+namespace ClassSaver2
 {
     /// <summary>
     /// Generates the script with given info.
@@ -26,7 +24,6 @@ namespace ClassSaver2.Remake
 using System;
 using System.IO;
 using ClassSaver2;
-using ClassSaver2.Remake;
 
 namespace ClassSaver2.PredefinedDatatypes
 {{
@@ -95,13 +92,16 @@ namespace ClassSaver2.PredefinedDatatypes
             ");
             }
 
-            outputCode.Append($@"
+            outputCode.Append($@"#line default
         }}
         ");
         }
 
         private static void GenCodeFieldWrite(FieldInfo fieldInfo, StringBuilder outputCode)
         {
+            outputCode.Append(@$"#line {fieldInfo.LineNumber.ToString()} ""{fieldInfo.FileLocation}""
+            ");
+            
             var fieldType = fieldInfo.FieldType;
             if (!fieldType.HasFixedType)
             {
@@ -133,13 +133,16 @@ namespace ClassSaver2.PredefinedDatatypes
             ");
             }
             
-            outputCode.Append($@"
+            outputCode.Append($@"#line default
         }}
         ");
         }
 
         private static void GenCodeFieldRead(FieldInfo fieldInfo, StringBuilder outputCode)
         {
+            outputCode.Append(@$"#line {fieldInfo.LineNumber.ToString()} ""{fieldInfo.FileLocation}""
+            ");
+            
             var fieldType = fieldInfo.FieldType;
             if (!fieldType.HasFixedType)
             {
@@ -149,7 +152,7 @@ namespace ClassSaver2.PredefinedDatatypes
             }
             
             var type = fieldType.TypeInfo;
-            outputCode.Append($"default(");
+            outputCode.Append("default(");
             WriteHandlerCallToSB(outputCode, type);
             outputCode.Append($").Read(reader, ref input.{fieldInfo.FieldName}, context);");
         }

@@ -3,7 +3,7 @@ using System;
 namespace ClassSaver2.DatatypeDefinitions
 {
     /// <summary>
-    /// Represents possibly a TypeInfo or a type parameter. It can also have both.
+    /// Represents possibly a TypeInfoNoFields or a type parameter. It can also have both.
     /// </summary>
     public readonly struct TypeArgumentInfo : IEquatable<TypeArgumentInfo>, ITypeInfo
     {

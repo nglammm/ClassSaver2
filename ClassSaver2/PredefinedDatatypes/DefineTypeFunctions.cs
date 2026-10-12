@@ -1,61 +1,9 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using ClassSaver2.Remake;
-using Microsoft.CodeAnalysis;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
     public static class DefineTypeFunctions
     {
-        private const string SerializeAttributeFullName = "ClassSaver2.Remake.SerializeAttribute";
-
-        private static readonly HashSet<string> PredefinedMetadataNames = new HashSet<string>
-        {
-            // primitives
-            "System.Int32",
-            "System.Int64",
-            "System.Double",
-            "System.Single",
-            "System.Boolean",
-            "System.Byte",
-            "System.SByte",
-            "System.Char",
-            "System.String",
-            // collections
-            "System.Collections.Generic.List`1",
-        };
-
-        internal static bool HasHandler(Compilation compilation, ITypeSymbol typeSymbol)
-        {
-            if (typeSymbol == null) return false;
-            if (!(typeSymbol is INamedTypeSymbol namedTypeSymbol))
-            {
-                return typeSymbol is ITypeParameterSymbol;
-            }
-            
-            namedTypeSymbol = namedTypeSymbol.OriginalDefinition;
-            
-            if (PredefinedMetadataNames.Contains(namedTypeSymbol.GetFullMetadataName())) return true;
-            
-            // scan for type symbol attr
-            foreach (var attr in namedTypeSymbol.GetAttributes())
-            {
-                if (attr.AttributeClass.ToFastDisplayString(false) == SerializeAttributeFullName) return true;
-            }
-            
-            // scan for compilation
-            var typeData = compilation.GetTypeByMetadataName("ClassSaver2.PredefinedDatatypes.Handle" + Helper.GetLastName(namedTypeSymbol.MetadataName));
-            if (typeData == null) return false;
-
-            foreach (var iFace in namedTypeSymbol.Interfaces)
-            {
-                if (SymbolEqualityComparer.Default.Equals(iFace.TypeArguments[0] as INamedTypeSymbol, namedTypeSymbol)) return true;
-            }
-            
-            return false;
-        }
-        
         /// <summary>
         /// Determines if the passed in data can skip writing.
         /// </summary>

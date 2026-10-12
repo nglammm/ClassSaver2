@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
-using ClassSaver2.Remake;
-using ClassSaver2Test;
+using ClassSaver2;
 using MyGame.Entities;
 using ClassSaver2.PredefinedDatatypes;
 
@@ -18,6 +16,7 @@ namespace MyGame.Entities
     [Serialize]
     public struct Vector2<T1, T2> : IRandomizable, IEquatable<Vector2<T1, T2>> where T1 : struct
     {
+        [SerializeField]
         public T1 X;
         public T2 Y;
 
@@ -64,7 +63,7 @@ namespace MyGame.Entities
 
         public int TemporarySessionToken = 999;
 
-        public void RandomData(Random random)
+    public void RandomData(Random random)
         {
             PlayerName = "Player_" + random.Next(1000, 9999);
             Health = random.Next(1, 101);
@@ -132,7 +131,10 @@ namespace MyGame.Entities
         public int Score;
 
         public List<List<List<Vector2<int, int>>>> Positions;
-        public List shit;
+        
+        [NonSerialized]
+        public List Shit;
+        
         public Vector2<int, int> Position;
         public PlayerData2 Data2;
         public int Goddamn;
@@ -141,7 +143,7 @@ namespace MyGame.Entities
         private int TemporarySessionToken = 999;
 
         public PlayerData()
-        {
+        { 
             playerData = this;
         }
 
@@ -178,7 +180,7 @@ namespace MyGame.Entities
                 Positions.Add(subList2);
             }
 
-            shit = new List();
+            Shit = new List();
 
             Data2 = new PlayerData2();
             Data2.RandomData(random);

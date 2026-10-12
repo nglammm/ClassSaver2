@@ -7,8 +7,8 @@ namespace ClassSaver2.Debug
         // Rule 1: Class lacks a valid parameterless constructor or is abstract
         public static readonly DiagnosticDescriptor MissingParameterlessConstructorRule = new DiagnosticDescriptor(
             id: "CLASSSAVER0001",
-            title: "Missing parameterless constructor",
-            messageFormat: "The serializable type '{0}' must be a non-abstract class with a public or internal parameterless constructor (or a struct)",
+            title: "Parameterless constructor required",
+            messageFormat: "The serializable type '{0}' must be a non-abstract class with a public parameterless constructor",
             category: "ClassSaver",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true
