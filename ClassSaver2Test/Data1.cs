@@ -16,7 +16,6 @@ namespace MyGame.Entities
     [Serialize]
     public struct Vector2<T1, T2> : IRandomizable, IEquatable<Vector2<T1, T2>> where T1 : struct
     {
-        [SerializeField]
         public T1 X;
         public T2 Y;
 

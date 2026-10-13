@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using ClassSaver2.Debug;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,6 +7,7 @@ using TypeInfo = ClassSaver2.DatatypeDefinitions.TypeInfo;
 
 namespace ClassSaver2
 {
+    [EditorBrowsable(EditorBrowsableState.Never)]
     [Generator]
     public class Fetcher : IIncrementalGenerator
     {
