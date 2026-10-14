@@ -4,7 +4,7 @@ using System.IO;
 namespace ClassSaver2.PredefinedDatatypes
 {
     public readonly partial struct HandleList<T, TElementHandler> : IDefineDatatype<List<T>>
-        where TElementHandler : struct, IDefineDatatype<T> where T : new()
+        where TElementHandler : struct, IDefineDatatype<T>
     {
 
         public void Write(BinaryWriter writer, List<T> obj, WriteContext context)

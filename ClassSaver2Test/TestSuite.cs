@@ -383,7 +383,19 @@ namespace MyGame.Entities
         public bool Equals(IRandomizable other) => other is AllPredefinedTypesData data && Equals(data);
         public override bool Equals(object obj) => Equals(obj as AllPredefinedTypesData);
 
-        public override int GetHashCode() => HashCode.Combine(ByteVal, CharVal, Int32Val, Int64Val, DoubleVal);
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + ByteVal.GetHashCode();
+                hash = hash * 31 + CharVal.GetHashCode();
+                hash = hash * 31 + Int32Val.GetHashCode();
+                hash = hash * 31 + Int64Val.GetHashCode();
+                hash = hash * 31 + DoubleVal.GetHashCode();
+                return hash;
+            }
+        }
     }
 }
 

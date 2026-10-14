@@ -23,7 +23,7 @@ namespace ClassSaver2.DatatypeDefinitions
             else
             {
                 var typeInfo = new TypeInfoNoFields(symbol.Type);
-                FieldType = new TypeArgumentInfo(typeInfo.TypeFullName, typeInfo);
+                FieldType = new TypeArgumentInfo(typeInfo);
             }
             
             var loc = symbol.Locations.FirstOrDefault(l => l.IsInSource);

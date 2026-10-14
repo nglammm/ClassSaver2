@@ -35,8 +35,8 @@ namespace ClassSaver2.PredefinedDatatypes
             }
             
             // assign it an id
-            writer.Write((byte)2);
-            writer.Write(context.Add(data));
+            writer.Write((byte)2); // new reference byte
+            writer.Write(context.Add(data)); // id code
             return false;
         }
 
@@ -47,7 +47,6 @@ namespace ClassSaver2.PredefinedDatatypes
         {
             if (typeof(T).IsValueType)
             {
-                if (createNewInitialiseIfNull) initialise = new T();
                 return false;
             }
             
@@ -56,6 +55,7 @@ namespace ClassSaver2.PredefinedDatatypes
             {
                 case 0:
                     // null byte
+                    initialise = default;
                     return true; // done
                 case 1:
                     // id exists
@@ -70,7 +70,12 @@ namespace ClassSaver2.PredefinedDatatypes
             }
         }
 
-        public static bool CanSkipRead<T>(BinaryReader reader, ref T initialise, ReadContext context)
+        /// <summary>
+        /// This won't initialize the object if we want the new reference as we initialize it by your own.
+        ///
+        /// Use cases are for example if the type forces initialize with args.
+        /// </summary>
+        public static bool CanSkipReadNoInitialise<T>(BinaryReader reader, ref T initialise, ReadContext context)
         {
             if (typeof(T).IsValueType)
             {
@@ -82,13 +87,13 @@ namespace ClassSaver2.PredefinedDatatypes
             {
                 case 0:
                     // null byte
+                    initialise = default;
                     return true; // done
                 case 1:
                     // id exists
                     initialise = (T)context.Get(reader.ReadInt32());
                     return true;
                 case 2:
-                    context.Add(reader.ReadInt32(), initialise);
                     return false;
                 default:
                     return false;

@@ -14,14 +14,32 @@ namespace ClassSaver2.DatatypeDefinitions
         public TypeArgumentInfo[] TypeArguments { get; }
         public string TypeConstraintsAsString { get; }
         
-        public int Arity => TypeArguments?.Length ?? 0;
+        public bool IsArrayType { get; }
+        
+        public int Arity => IsArrayType ? 1 : (TypeArguments?.Length ?? 0);
 
         
         public TypeInfoNoFields(ITypeSymbol symbol)
         {
+            if (!(symbol is INamedTypeSymbol namedTypeSymbol))
+            {
+                if (!(symbol is IArrayTypeSymbol arrayTypeSymbol))
+                {
+                    TypeArguments = Array.Empty<TypeArgumentInfo>();
+                    TypeConstraintsAsString = string.Empty;
+                    return;
+                }
+
+                var typeInfo = new TypeInfoNoFields(arrayTypeSymbol.ElementType);
+                TypeFullName = typeInfo.TypeFullName;
+                IsArrayType = true;
+                TypeArguments = [new TypeArgumentInfo(typeInfo)];
+                return;
+            }
+
             TypeFullName = symbol.ToFastDisplayString(true);
-    
-            if (!(symbol is INamedTypeSymbol namedTypeSymbol) || namedTypeSymbol.Arity == 0)
+            
+            if (namedTypeSymbol.Arity == 0)
             {
                 TypeArguments = Array.Empty<TypeArgumentInfo>();
                 TypeConstraintsAsString = string.Empty;
@@ -40,7 +58,7 @@ namespace ClassSaver2.DatatypeDefinitions
                 }
                 else
                 {
-                    TypeArguments[i] = new TypeArgumentInfo(TypeFullName, new TypeInfoNoFields(typeArgument), typeArgument.Name);
+                    TypeArguments[i] = new TypeArgumentInfo(new TypeInfoNoFields(typeArgument));
                 }
                 
                 // type parameter

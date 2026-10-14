@@ -21,9 +21,9 @@ namespace ClassSaver2.DatatypeDefinitions
             TypeInfo = null;
         }
 
-        public TypeArgumentInfo(string typeFullName, TypeInfoNoFields typeInfo, string symbolName = "")
+        public TypeArgumentInfo(TypeInfoNoFields typeInfo, string symbolName = "")
         {
-            TypeFullName = typeFullName;
+            TypeFullName = typeInfo.TypeFullName;
             TypeInfo = typeInfo;
             SymbolName = symbolName;
         }

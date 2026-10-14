@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace ClassSaver2.PredefinedDatatypes
 {
-    public readonly struct HandleSingle : IDefineDatatype<float>
+    public readonly partial struct HandleSingle : IDefineDatatype<float>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(BinaryWriter writer, float value, WriteContext context)

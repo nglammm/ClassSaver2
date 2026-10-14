@@ -5,7 +5,7 @@ namespace ClassSaver2.PredefinedDatatypes;
 /// <summary>
 /// Fixed implementation for handling arrays T[].
 /// </summary>
-public readonly struct HandleArray<T, TElementHandler> where TElementHandler : struct, IDefineDatatype<T>
+public readonly partial struct HandleArray<T, TElementHandler> where TElementHandler : struct, IDefineDatatype<T>
 {
     public void Write(BinaryWriter writer, T[] value, WriteContext context)
     {

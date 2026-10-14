@@ -160,6 +160,14 @@ namespace ClassSaver2.PredefinedDatatypes
         #region handler calls
         private static void WriteHandlerCallToSB(StringBuilder sb, TypeInfoNoFields typeInfo)
         {
+            if (typeInfo.IsArrayType)
+            {
+                sb.Append("HandleArray<");
+                WriteHandlerCallToSB(sb, typeInfo.TypeArguments[0], true);
+                sb.Append(">");
+                return;
+            }
+
             if (typeInfo.Arity == 0)
             {
                 sb.Append($"Handle{Helper.GetLastName(typeInfo.TypeFullName)}");
@@ -167,6 +175,7 @@ namespace ClassSaver2.PredefinedDatatypes
             }
             
             sb.Append($"Handle{Helper.GetLastName(typeInfo.TypeFullName)}<");
+            
             
             for (int i = 0; i < typeInfo.Arity; i++)
             {

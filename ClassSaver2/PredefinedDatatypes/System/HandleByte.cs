@@ -2,7 +2,7 @@ using System.IO;
 
 namespace ClassSaver2.PredefinedDatatypes;
 
-public struct HandleByte : IDefineDatatype<byte>
+public readonly partial struct HandleByte : IDefineDatatype<byte>
 {
     public void Write(BinaryWriter writer, byte input, WriteContext context)
     {

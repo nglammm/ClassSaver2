@@ -2,7 +2,7 @@ using System.IO;
 
 namespace ClassSaver2.PredefinedDatatypes;
 
-public readonly struct HandleInt64 : IDefineDatatype<long>
+public readonly partial struct HandleInt64 : IDefineDatatype<long>
 {
     public void Write(BinaryWriter writer, long input, WriteContext context)
     {
