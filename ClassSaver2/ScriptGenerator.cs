@@ -111,10 +111,11 @@ namespace ClassSaver2.PredefinedDatatypes
             
             // it has fixed type
             var type = fieldType.TypeInfo;
- 
+            
             outputCode.Append($"default(");
             WriteHandlerCallToSB(outputCode, type);
-            outputCode.Append($@").Write(writer, input.{fieldInfo.FieldName}, context);");
+            if (type.Kind == TypeInfoKind.Enum) outputCode.Append($").Write(writer, ({type.UnderlyingEnumTypeFullName})input.{fieldInfo.FieldName}, context);");
+            else outputCode.Append($").Write(writer, input.{fieldInfo.FieldName}, context);");
         }
 
         private static void GenCodeRead(TypeInfo targetType, StringBuilder outputCode)
@@ -152,29 +153,46 @@ namespace ClassSaver2.PredefinedDatatypes
             }
             
             var type = fieldType.TypeInfo;
-            outputCode.Append("default(");
-            WriteHandlerCallToSB(outputCode, type);
-            outputCode.Append($").Read(reader, ref input.{fieldInfo.FieldName}, context);");
+
+            if (type.Kind != TypeInfoKind.Enum)
+            {
+                outputCode.Append("default(");
+                WriteHandlerCallToSB(outputCode, type);
+                outputCode.Append($").Read(reader, ref input.{fieldInfo.FieldName}, context);");
+            }
+            else
+            {
+                // enum only code
+                outputCode.Append($@"{type.UnderlyingEnumTypeFullName} enum_{fieldInfo.FieldName} = default;
+            default(");
+                WriteHandlerCallToSB(outputCode, type);
+                outputCode.Append($@").Read(reader, ref enum_{fieldInfo.FieldName}, context);
+            input.{fieldInfo.FieldName} = ({type.TypeFullName})enum_{fieldInfo.FieldName};");
+            }
         }
 
         #region handler calls
         private static void WriteHandlerCallToSB(StringBuilder sb, TypeInfoNoFields typeInfo)
         {
-            if (typeInfo.IsArrayType)
+            // handle special types
+            switch (typeInfo.Kind)
             {
-                sb.Append("HandleArray<");
-                WriteHandlerCallToSB(sb, typeInfo.TypeArguments[0], true);
-                sb.Append(">");
-                return;
+                case TypeInfoKind.Array:
+                    sb.Append("HandleArray<");
+                    WriteHandlerCallToSB(sb, typeInfo.TypeArguments[0], true);
+                    sb.Append(">");
+                    return;
             }
+            
+            string typeFullName = typeInfo.Kind != TypeInfoKind.Enum ? typeInfo.TypeFullName : typeInfo.UnderlyingEnumTypeFullName;
 
             if (typeInfo.Arity == 0)
             {
-                sb.Append($"Handle{Helper.GetLastName(typeInfo.TypeFullName)}");
+                sb.Append($"Handle{Helper.GetLastName(typeFullName)}");
                 return;
             }
             
-            sb.Append($"Handle{Helper.GetLastName(typeInfo.TypeFullName)}<");
+            sb.Append($"Handle{Helper.GetLastName(typeFullName)}<");
             
             
             for (int i = 0; i < typeInfo.Arity; i++)

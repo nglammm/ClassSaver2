@@ -14,6 +14,25 @@ namespace MyGame.Entities
         void RandomData(Random random);
     }
 
+    // --- Added Enum Definitions ---
+    public enum PlayerRole : byte
+    {
+        None = 0,
+        Warrior = 1,
+        Mage = 2,
+        Archer = 3,
+        Rogue = 4
+    }
+
+    public enum ItemRarity : int
+    {
+        Common = 100,
+        Uncommon = 200,
+        Rare = 300,
+        Epic = 400,
+        Legendary = 500
+    }
+
     [Serialize]
     public struct Vector2<T1, T2> : IRandomizable, IEquatable<Vector2<T1, T2>> where T1 : struct
     {
@@ -270,6 +289,10 @@ namespace MyGame.Entities
         public double DoubleVal;
         public string StringVal;
 
+        // Enums
+        public PlayerRole RoleVal;
+        public ItemRarity RarityVal;
+
         // System Collections
         public byte[] ByteArray;
         public List<int> IntList;
@@ -292,6 +315,13 @@ namespace MyGame.Entities
             SingleVal = (float)(random.NextDouble() * 2000.0 - 1000.0);
             DoubleVal = random.NextDouble() * 100000.0 - 50000.0;
             StringVal = "Str_" + random.Next(1000, 9999);
+
+            // Randomize enums
+            Array roles = Enum.GetValues(typeof(PlayerRole));
+            RoleVal = (PlayerRole)roles.GetValue(random.Next(roles.Length));
+
+            Array rarities = Enum.GetValues(typeof(ItemRarity));
+            RarityVal = (ItemRarity)rarities.GetValue(random.Next(rarities.Length));
 
             int arrayLen = random.Next(2, 8);
             ByteArray = new byte[arrayLen];
@@ -332,6 +362,8 @@ namespace MyGame.Entities
                    Math.Abs(SingleVal - other.SingleVal) < 0.0001f &&
                    Math.Abs(DoubleVal - other.DoubleVal) < 0.000001 &&
                    string.Equals(StringVal, other.StringVal, StringComparison.Ordinal) &&
+                   RoleVal == other.RoleVal &&
+                   RarityVal == other.RarityVal &&
                    AreArraysEqual(ByteArray, other.ByteArray) &&
                    AreListsEqual(IntList, other.IntList) &&
                    AreDictsEqual(StringToDoubleDict, other.StringToDoubleDict) &&
@@ -393,6 +425,8 @@ namespace MyGame.Entities
                 hash = hash * 31 + Int32Val.GetHashCode();
                 hash = hash * 31 + Int64Val.GetHashCode();
                 hash = hash * 31 + DoubleVal.GetHashCode();
+                hash = hash * 31 + RoleVal.GetHashCode();
+                hash = hash * 31 + RarityVal.GetHashCode();
                 return hash;
             }
         }
@@ -430,6 +464,8 @@ namespace ClassSaver2Test
                 SingleVal = float.MaxValue,
                 DoubleVal = double.MinValue,
                 StringVal = "Unicode \u2603 \uD83D\uDE80 Symbol #Test",
+                RoleVal = PlayerRole.Rogue,
+                RarityVal = ItemRarity.Legendary,
                 ByteArray = new byte[] { byte.MinValue, 127, byte.MaxValue },
                 IntList = new List<int> { int.MinValue, 0, int.MaxValue },
                 StringToDoubleDict = new Dictionary<string, double>
@@ -448,6 +484,8 @@ namespace ClassSaver2Test
             RunPredefinedTest("Types 03: Empty & Null Collections", () => new AllPredefinedTypesData
             {
                 StringVal = null,
+                RoleVal = PlayerRole.None,
+                RarityVal = ItemRarity.Common,
                 ByteArray = null,
                 IntList = new List<int>(),
                 StringToDoubleDict = new Dictionary<string, double>(),
